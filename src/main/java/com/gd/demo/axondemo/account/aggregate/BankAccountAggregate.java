@@ -48,14 +48,15 @@ public class BankAccountAggregate {
 
     @CommandHandler
     public void handle(DepositMoneyCommand cmd) {
-        if (blocked) {
-            throw new IllegalStateException("Account '" + accountId + "' is blocked and cannot receive money");
-        }
-        if (cmd.amount().compareTo(BigDecimal.ZERO) <= 0) {
-            throw new IllegalArgumentException("Deposit amount must be positive");
-        }
-        BigDecimal newBalance = balance.add(cmd.amount());
-        AggregateLifecycle.apply(new MoneyDepositedEvent(cmd.transferId(), cmd.message(), accountId, cmd.sourceAccountId(), cmd.amount(), balance, newBalance));
+        // LIVE CODE ↓ (scenario 1 — command handler)
+//        if (blocked) {
+//            throw new IllegalStateException("Account '" + accountId + "' is blocked and cannot receive money");
+//        }
+//        if (cmd.amount().compareTo(BigDecimal.ZERO) <= 0) {
+//            throw new IllegalArgumentException("Deposit amount must be positive");
+//        }
+//        BigDecimal newBalance = balance.add(cmd.amount());
+//        AggregateLifecycle.apply(new MoneyDepositedEvent(cmd.transferId(), cmd.message(), accountId, cmd.sourceAccountId(), cmd.amount(), balance, newBalance));
     }
 
     @CommandHandler
@@ -69,9 +70,9 @@ public class BankAccountAggregate {
         if (balance.compareTo(cmd.amount()) < 0) {
             throw new IllegalStateException("Insufficient funds: balance is " + balance);
         }
-
-        conflictResolver.detectConflicts(events ->
-                events.stream().anyMatch(e -> isMoneyEvent(e.getPayload())));
+        // LIVE CODE ↓ (scenario 5 — conflict resolution)
+//        conflictResolver.detectConflicts(events ->
+//                events.stream().anyMatch(e -> isMoneyEvent(e.getPayload())));
         BigDecimal newBalance = balance.subtract(cmd.amount());
         AggregateLifecycle.apply(new MoneyWithdrawnEvent(cmd.transferId(), cmd.message(), cmd.accountId(), null, cmd.amount(), balance, newBalance));
     }
@@ -93,7 +94,7 @@ public class BankAccountAggregate {
     @CommandHandler
     public void handle(RefundMoneyCommand cmd) {
         BigDecimal newBalance = balance.add(cmd.amount());
-        AggregateLifecycle.apply(new MoneyRefundedEvent(cmd.transferId(), cmd.accountId(), cmd.amount() , balance, newBalance));
+        AggregateLifecycle.apply(new MoneyRefundedEvent(cmd.transferId(), cmd.accountId(), cmd.amount(), balance, newBalance));
     }
 
     @EventSourcingHandler
@@ -121,7 +122,8 @@ public class BankAccountAggregate {
 
     @EventSourcingHandler
     public void on(MoneyDepositedEvent event) {
-        this.balance = event.newBalance();
+        // LIVE CODE ↓ (scenario 2 — event sourcing handler)
+//        this.balance = event.newBalance();
     }
 
     @EventSourcingHandler

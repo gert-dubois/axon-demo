@@ -61,11 +61,12 @@ public class BankAccountProjection {
 
     @EventHandler
     public void on(MoneyDepositedEvent event, @SequenceNumber long version) {
-        BankAccountView account = findOrThrow(event.accountId());
-        account.setBalance(event.newBalance());
-        account.setVersion(version);
-        repository.save(account);
-        log.info("[BankAccountView] Account '{}' balance updated after deposit: {} → {} (v{})", event.accountId(), event.previousBalance(), event.newBalance(), version);
+        // LIVE CODE ↓ (scenario 3 — event handler / projection)
+//        BankAccountView account = findOrThrow(event.accountId());
+//        account.setBalance(event.newBalance());
+//        account.setVersion(version);
+//        repository.save(account);
+//        log.info("[BankAccountView] Account '{}' balance updated after deposit: {} → {} (v{})", event.accountId(), event.previousBalance(), event.newBalance(), version);
     }
 
     @EventHandler

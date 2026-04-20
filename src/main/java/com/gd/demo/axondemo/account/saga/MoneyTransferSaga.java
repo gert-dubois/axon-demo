@@ -32,17 +32,18 @@ public class MoneyTransferSaga {
             return;
         }
 
-        commandGateway.send(new DepositMoneyCommand(
-                event.transferId(),
-                event.targetAccountId(),
-                event.amount(),
-                event.message(),
-                event.accountId()  // source account
-        )).exceptionally(ex -> {
-            System.out.println("[SAGA] Credit failed (" + ex.getMessage() + ") — compensating transfer " + event.transferId());
-            commandGateway.send(new RefundMoneyCommand(event.transferId(), event.accountId(), event.amount()));
-            return null;
-        });
+        // LIVE CODE ↓ (scenario 6 — saga: deposit to target, compensate on failure)
+//        commandGateway.send(new DepositMoneyCommand(
+//                event.transferId(),
+//                event.targetAccountId(),
+//                event.amount(),
+//                event.message(),
+//                event.accountId()
+//        )).exceptionally(ex -> {
+//            System.out.println("[SAGA] Credit failed (" + ex.getMessage() + ") — compensating transfer " + event.transferId());
+//            commandGateway.send(new RefundMoneyCommand(event.transferId(), event.accountId(), event.amount()));
+//            return null;
+//        });
     }
 
     @EndSaga

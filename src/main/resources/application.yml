@@ -26,4 +26,6 @@ axon:
   eventhandling:
     processors:
       transaction-history-projection:
+        # LIVE CODE ↓ (scenario 4 — uncomment to switch from tracking to subscribing)
+        # mode: subscribing
         mode: subscribing
