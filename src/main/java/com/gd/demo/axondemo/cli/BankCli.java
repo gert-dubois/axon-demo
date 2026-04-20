@@ -101,34 +101,34 @@ public class BankCli implements CommandLineRunner {
 	}
 
 	private void handleWithdraw(String args) {
-		String[] parts = args.split("\\s+", 4);
-		if (parts.length < 3) {
-			System.out.println("Usage: withdraw <id> <version> <amount> [message]");
+		ParsedArgs p = ParsedArgs.of(args);
+		if (p.positional.size() < 2) {
+			System.out.println("Usage: withdraw <id> <amount> [--version=X] [--message=<text>]");
 			return;
 		}
-		String accountId = parts[0];
-		Long version = Long.parseLong(parts[1]);
-		BigDecimal amount = new BigDecimal(parts[2]);
-		String message = parts.length > 3 ? parts[3] : "";
-		commandGateway.sendAndWait(new WithdrawMoneyCommand(UUID.randomUUID(), accountId, amount, message, version));
-		System.out.printf("✓ Withdrew %s from account '%s'%n", amount, accountId);
+		String accountId = p.positional.get(0);
+		BigDecimal amount = new BigDecimal(p.positional.get(1));
+		long version = p.hasFlag("version") ? Long.parseLong(p.flag("version")) : currentVersion(accountId);
+		String message = p.flag("message");
+		commandGateway.sendAndWait(new WithdrawMoneyCommand(UUID.randomUUID(), accountId, amount, message != null ? message : "", version));
+		System.out.printf("✓ Withdrew %s from account '%s' (used version %d)%n", amount, accountId, version);
 	}
 
 	private void handleTransfer(String args) {
-		String[] parts = args.split("\\s+", 5);
-		if (parts.length < 4) {
-			System.out.println("Usage: transfer <fromId> <version> <toId> <amount> [message]");
+		ParsedArgs p = ParsedArgs.of(args);
+		if (p.positional.size() < 3) {
+			System.out.println("Usage: transfer <fromId> <toId> <amount> [--version=X] [--message=<text>]");
 			return;
 		}
-		String accountId = parts[0];
-		Long version = Long.parseLong(parts[1]);
-		String targetAccountId = parts[2];
+		String accountId = p.positional.get(0);
+		String targetAccountId = p.positional.get(1);
+		BigDecimal amount = new BigDecimal(p.positional.get(2));
+		long version = p.hasFlag("version") ? Long.parseLong(p.flag("version")) : currentVersion(accountId);
+		String message = p.flag("message");
 		UUID transferId = UUID.randomUUID();
-		BigDecimal amount = new BigDecimal(parts[3]);
-		String message = parts.length > 4 ? parts[4] : "";
-		commandGateway.sendAndWait(new TransferMoneyCommand(transferId, accountId, amount, targetAccountId, message, version));
-		System.out.printf("✓ Transfer initiated: %s from '%s' to '%s' (id: %s)%n",
-				amount, accountId, targetAccountId, transferId);
+		commandGateway.sendAndWait(new TransferMoneyCommand(transferId, accountId, amount, targetAccountId, message != null ? message : "", version));
+		System.out.printf("✓ Transfer initiated: %s from '%s' to '%s' (id: %s, used version %d)%n",
+				amount, accountId, targetAccountId, transferId, version);
 		System.out.println("  (watch for [SAGA] messages — compensation fires if target is blocked)");
 	}
 
@@ -230,18 +230,51 @@ public class BankCli implements CommandLineRunner {
 
 	private void printHelp() {
 		System.out.println("Commands:");
-		System.out.println("  create <id> <owner> <initialBalance>      			Create a new bank account");
-		System.out.println("  deposit <id> <amount> [message]           	Deposit money (conflict-checked)");
-		System.out.println("  withdraw <id> <version> <amount> [message>]          	Withdraw money (conflict-checked)");
-		System.out.println("  transfer <fromId> <version> <toId> <amt> [message]	Transfer money via Saga (conflict-checked)");
-		System.out.println("  updateowner <id> <version> <newOwner>     			Update account owner (conflict-checked)");
-		System.out.println("  block <id>                                			Block an account");
-		System.out.println("  balance <id>                              			Show account details + current version");
-		System.out.println("  list                                      			List all accounts with versions");
-		System.out.println("  history <id>                              			Show transaction history for an account");
-		System.out.println("  help                                      			Show this help");
-		System.out.println("  exit                                      			Quit");
+		System.out.println("  create <id> <owner> <initialBalance>      						Create a new bank account");
+		System.out.println("  deposit <id> <amount> [--message=<text>]                  		Deposit money");
+		System.out.println("  withdraw <id> <amount> [--version=X] [--message=<text>]   		Withdraw money (version defaults to current)");
+		System.out.println("  transfer <fromId> <toId> <amt> [--version=X] [--message=<text>]	Transfer money via Saga (version defaults to current)");
+		System.out.println("  updateowner <id> <version> <newOwner>                  			Update account owner (conflict-checked)");
+		System.out.println("  block <id>                                						Block an account");
+		System.out.println("  balance <id>                              						Show account details + current version");
+		System.out.println("  list                                      						List all accounts with versions");
+		System.out.println("  history <id>                              						Show transaction history for an account");
+		System.out.println("  help                                      						Show this help");
+		System.out.println("  exit                                      						Quit");
 		System.out.println();
+	}
+
+	private long currentVersion(String accountId) {
+		BankAccountView account = queryGateway
+				.query(new FindAccountQuery(accountId), BankAccountView.class)
+				.join();
+		if (account == null) {
+			throw new IllegalStateException("Account '" + accountId + "' not found");
+		}
+		return account.getVersion();
+	}
+
+	/** Splits a raw arg string into positional args and --key=value flags. */
+	private static class ParsedArgs {
+		final java.util.List<String> positional = new java.util.ArrayList<>();
+		final java.util.Map<String, String> flags = new java.util.HashMap<>();
+
+		static ParsedArgs of(String args) {
+			ParsedArgs p = new ParsedArgs();
+			if (args == null || args.isBlank()) return p;
+			for (String token : args.trim().split("\\s+")) {
+				if (token.startsWith("--") && token.contains("=")) {
+					int eq = token.indexOf('=');
+					p.flags.put(token.substring(2, eq), token.substring(eq + 1));
+				} else {
+					p.positional.add(token);
+				}
+			}
+			return p;
+		}
+
+		boolean hasFlag(String key) { return flags.containsKey(key); }
+		String flag(String key) { return flags.get(key); }
 	}
 
 	private Throwable rootCause(Throwable t) {
